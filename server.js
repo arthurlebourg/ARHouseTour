@@ -42,7 +42,7 @@ wss.on('connection', function (ws) {
         for (const [key, value] of clients) {
             if (value == ws) {
                 clients.delete(key);
-                const msg = JSON.stringify({ 'uuid': JSON.parse(key)['uuid'], 'offer_removed': true });
+                const msg = JSON.stringify({ 'uuid': JSON.parse(key)['uuid'], 'type': 'offer_removed' });
                 console.log('Offer removed from ' + JSON.parse(key)['uuid'] + ' by disconnection');
                 wss.broadcast(msg);
                 break;
@@ -53,7 +53,7 @@ wss.on('connection', function (ws) {
     ws.on('message', function (message) {
         const data = JSON.parse(message);
 
-        if (data && data['offer_removed']) {
+        if (data && data[type] == 'offer_removed') {
             console.log('Offer removed from ' + data['uuid']);
             for (const [key, value] of clients) {
                 if (value == ws) {
@@ -64,18 +64,18 @@ wss.on('connection', function (ws) {
                 }
             }
         }
-        else if (data && data['sdp']) {
-            if (data['sdp']['type'] == 'offer') {
+        else if (data && data["type"] === 'sdp') {
+            if (data['data']['sdp']['type'] === 'offer') {
                 console.log('Received offer from ' + data['uuid']);
                 clients.set(message, ws);
                 wss.broadcast(message);
             }
-            else if (data['sdp']['type'] == 'answer') {
+            else if (data['data']['sdp']['type'] === 'answer') {
                 console.log('Received answer from ' + data['uuid']);
                 clients.set(message, ws);
                 for (const [key, value] of clients) {
                     const data2 = JSON.parse(key);
-                    if (data2['uuid'] == data['target_uuid']) {
+                    if (data2['uuid'] == data['data']['target_uuid']) {
                         value.send(message.toString());
                         //clients.delete(key);
                         break;
@@ -83,17 +83,17 @@ wss.on('connection', function (ws) {
                 }
             }
         }
-        else if (data && data['ice']) {
+        else if (data && data["type"] == 'ice') {
             for (const [key, value] of clients) {
                 const data2 = JSON.parse(key);
-                if (data2['uuid'] == data['target_uuid']) {
+                if (data2['uuid'] == data['data']['target_uuid']) {
                     console.log('Send ICE to ' + data['target_uuid']);
                     value.send(message.toString());
                     break;
                 }
             }
         }
-        else if (data && data['log']) {
+        else if (data && data["type"] === 'log') {
             console.log(data['log'])
         }
     });
