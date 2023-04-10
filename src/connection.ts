@@ -32,6 +32,7 @@ export abstract class Connection {
         this.peer_connections = new Map<string, PeerToPeerConnection>();
         this.unconnected_peers = [];
         this.remote_video = document.createElement('video');
+        this.remote_video.autoplay = true;
         document.body.appendChild(this.remote_video);
     }
 

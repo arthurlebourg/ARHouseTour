@@ -104,7 +104,9 @@ export class ArUser extends Connection {
             canvas: canvas,
         };
 
-        const ar_user = new ArUser(name, world, canvas.captureStream(30), socket);
+        const stream = canvas.captureStream(30);
+
+        const ar_user = new ArUser(name, world, stream, socket);
 
         // wait for socker to connect
         while (!ar_user.is_socket_connected()) {
