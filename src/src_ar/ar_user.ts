@@ -30,13 +30,13 @@ export type ARWorld = {
 export class ArUser extends Connection {    
     private world: ARWorld;
     private pipeline: any;
-    private track: MediaStream;
+    private stream: MediaStream;
 
-    private constructor(name: string, world: ARWorld, track: MediaStream) {
-        super(name);
+    private constructor(name: string, world: ARWorld, stream: MediaStream, socket: WebSocket) {
+        super(name, socket);
         
         this.world = world;
-        this.track = track;
+        this.stream = stream;
         world.xr_session.addEventListener('selectstart', (event) => {
             this.world.is_finger_down = true;
             this.world.finger_position.set(event.inputSource.gamepad!.axes[0], event.inputSource.gamepad!.axes[1]);
@@ -48,7 +48,7 @@ export class ArUser extends Connection {
         this.pipeline = pipe(ReticlePipeline, TouchscreenPipeline, RenderPipeline, ScreenSharePipeline);
     }
 
-    public static async create(name: string): Promise<ArUser> {
+    public static async create(name: string, socket : WebSocket): Promise<ArUser> {
         const overlay = document.createElement("div")
 
         createApp(AROverlay).mount('#ar_overlay')!;
@@ -104,7 +104,7 @@ export class ArUser extends Connection {
             canvas: canvas,
         };
 
-        const ar_user = new ArUser(name, world, canvas.captureStream(30));
+        const ar_user = new ArUser(name, world, canvas.captureStream(30), socket);
 
         // wait for socker to connect
         while (!ar_user.is_socket_connected()) {
@@ -114,31 +114,37 @@ export class ArUser extends Connection {
         return ar_user;
     }
 
-    on_sdp_offer(data: any) {
+    on_sdp_offer = (uuid: string, data: any) => {
     }
 
-    on_sdp_answer(data: any) {
-        const peer = this.peer_connections.get(data.uuid);
-        peer?.peer_connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    on_sdp_answer = (uuid: string, data: any) => {
+        const peer = this.unconnected_peers[0];
+        peer.peer_connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        this.peer_connections.set(uuid, peer);
+        for (const ice of peer.ice_candidates) {
+            this.send_message_to_server("ice", JSON.stringify({target_uuid: uuid, ice: ice}));
+        }
     }
 
     public start() {
         const peer = this.addPeerConnection();
+        this.stream.getTracks().forEach((track) => {
+            peer.addTrack(track, this.stream);
+            console.log("added track");
+        });
+
         peer.createOffer().then((offer) => {
             peer.setLocalDescription(offer).then(() => {
                 const msg = JSON.stringify({ 'sdp': peer.localDescription});
                 this.send_message_to_server("sdp", msg)
-                console.log("sent offer");
             });
-        });
-        this.track.getTracks().forEach((track) => {
-            peer.addTrack(track, this.track);
         });
 
         this.world.xr_session.requestAnimationFrame(this.on_frame);
     }
 
-    on_data_channel_message(event: MessageEvent<any>): void {
+    on_data_channel_message = (event: MessageEvent<any>) => {
+        console.log("received message: " + event.data);
         
     }
 

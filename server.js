@@ -28,7 +28,8 @@ wss.on('connection', function (ws) {
 
     for (const [key, value] of clients) {
         const save_msg = JSON.parse(key);
-        if (save_msg['sdp']['type'] == 'offer') {
+        const payload = JSON.parse(save_msg["data"]);
+        if (payload['sdp']['type'] == 'offer') {
             ws.send(key.toString());
         }
     }
@@ -54,6 +55,19 @@ wss.on('connection', function (ws) {
         const msg = JSON.parse(message);
         const payload = JSON.parse(msg["data"]);
 
+        if (msg['type'] == 'join') {
+            for (const [key, value] of clients) {
+                const data2 = JSON.parse(key);
+                if (data2['uuid'] == msg['uuid']) {
+                    const tmp = key;
+                    tmp['exists'] = true;
+                    ws.send(key.toString());
+                    return;
+                }
+            }
+            ws.send("{\"exists\": false}");
+        }
+
         if (msg['type'] == 'offer_removed') {
             console.log('Offer removed from ' + msg['uuid']);
             for (const [key, value] of clients) {
@@ -76,7 +90,7 @@ wss.on('connection', function (ws) {
                 clients.set(message, ws);
                 for (const [key, value] of clients) {
                     const data2 = JSON.parse(key);
-                    if (data2['uuid'] == data['data']['target_uuid']) {
+                    if (data2['uuid'] == payload['target_uuid']) {
                         value.send(message.toString());
                         //clients.delete(key);
                         break;
@@ -88,7 +102,7 @@ wss.on('connection', function (ws) {
             for (const [key, value] of clients) {
                 const data2 = JSON.parse(key);
                 if (data2['uuid'] == payload['target_uuid']) {
-                    console.log('Send ICE to ' + msg['target_uuid']);
+                    console.log('Send ICE to ' + payload['target_uuid']);
                     value.send(message.toString());
                     break;
                 }

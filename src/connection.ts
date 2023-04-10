@@ -1,4 +1,3 @@
-
 const peerConnectionConfig = {
     'iceServers': [
       { 'urls': 'stun:stun.stunprotocol.org:3478' },
@@ -12,6 +11,7 @@ export type PeerToPeerConnection =
     data_channel: RTCDataChannel;
     uuid: string;
     name: string;
+    ice_candidates: RTCIceCandidate[];
 }
 
 export abstract class Connection {
@@ -20,18 +20,19 @@ export abstract class Connection {
     private server_socket: WebSocket;
     protected peer_connections: Map<string, PeerToPeerConnection>;
     protected unconnected_peers: PeerToPeerConnection[];
-    private ice_candidates: RTCIceCandidate[];
     private remote_video: HTMLVideoElement;
-    constructor(name : string) {
+
+    constructor(name : string, websocket : WebSocket) {
         this.uuid = createUUID();
+        console.log('https://' + window.location.host + '/?' + this.uuid); 
         this.name = name;
-        this.server_socket = new WebSocket('wss://' + window.location.host + '/');
+        this.server_socket = websocket;//new WebSocket('wss://' + window.location.host + '/');
         this.server_socket.onmessage = this.onMessage;
-        this.ice_candidates = [];
 
         this.peer_connections = new Map<string, PeerToPeerConnection>();
         this.unconnected_peers = [];
         this.remote_video = document.createElement('video');
+        document.body.appendChild(this.remote_video);
     }
 
     protected is_socket_connected() {
@@ -40,44 +41,68 @@ export abstract class Connection {
 
     protected addPeerConnection() {
         const peer = new RTCPeerConnection(peerConnectionConfig)
-        peer.onicecandidate = (event) => {
-            if (event.candidate) {
-                this.ice_candidates.push(event.candidate);
-            }
-        };
+        
         peer.ontrack = this.gotRemoteStream;
-        const data_channel = peer.createDataChannel("data");
+        const data_channel = peer.createDataChannel("data", { negotiated: true, id: 0 });
+        data_channel.onopen = () => {console.log("data channel open"); data_channel.send("hello")};
         data_channel.onmessage = this.on_data_channel_message;
-        this.unconnected_peers.push({
+        const p2p :PeerToPeerConnection = {
             peer_connection: peer,
             data_channel: data_channel,
             uuid: this.uuid,
             name: this.name,
-        });
+            ice_candidates: [],
+        }
+
+        peer.onicecandidate = (event) => {
+            if (event.candidate) {
+                p2p.ice_candidates.push(event.candidate);
+            }
+        };
+
+        this.unconnected_peers.push(p2p);
         
         return peer;
     }
 
-    private onMessage(event: MessageEvent) {
+    private onMessage = async (event: MessageEvent) => {
         let data = JSON.parse(event.data);
 
-        if (data.uuid !== this.uuid) {
+        if (data.uuid === this.uuid) {
             return;
         }
+        let payload;
 
         switch (data.type) {
             case "offer_removed":
                 break;
             case "sdp":
-                if (data.type === "offer") {
-                    this.on_sdp_offer(data.data);
-                } else if (data.type === "answer") {
-                    this.on_sdp_answer(data.data);
+                payload = JSON.parse(data["data"]);
+                if (payload["sdp"]["type"] === "offer") {
+                    console.log("Got SDP offer");
+                    // log type of on sdp offer
+                    this.on_sdp_offer(data.uuid, payload);
+                } else if (payload["sdp"]["type"]=== "answer") {
+                    console.log("Got SDP answer");
+                    this.on_sdp_answer(data.uuid, payload);
                 }
                 break;
             case "ice":
+                payload = JSON.parse(data["data"]);
                 const peer = this.peer_connections.get(data.uuid)!;
-                peer.peer_connection.addIceCandidate(new RTCIceCandidate(data.data));
+                let n = 0;
+                // wait for peer to be added
+                while (!peer) {
+                    n++;
+                    if (n > 100) {
+                        console.error("Peer not found");
+                        return;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                const ice = new RTCIceCandidate(payload["ice"]);
+                peer.peer_connection.addIceCandidate(ice);
+                console.log("Added ICE candidate");
                 break;
             default:
                 console.log("Unknown message type: " + data.type);
@@ -85,7 +110,7 @@ export abstract class Connection {
         }
     }
 
-    private gotRemoteStream(event: RTCTrackEvent) {
+    private gotRemoteStream = (event: RTCTrackEvent) => {
         console.log("Got remote stream");
         this.remote_video.srcObject = event.streams[0];
     }
@@ -99,9 +124,9 @@ export abstract class Connection {
         }));
     }
 
-    protected abstract on_data_channel_message(event: MessageEvent): void;
-    protected abstract on_sdp_offer(data: any): void;
-    protected abstract on_sdp_answer(data: any): void;
+    protected abstract on_data_channel_message : (event: MessageEvent) => void;
+    protected abstract on_sdp_offer : (uuid: string, data: any) => void;
+    protected abstract on_sdp_answer : (uuid: string, data: any) => void;
     public abstract start(): void;
 }
 
