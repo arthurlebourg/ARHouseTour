@@ -23,16 +23,20 @@ export type ARWorld = {
     scene: Scene,
     is_finger_down: boolean,
     finger_position: Vector2,
+    canvas: HTMLCanvasElement;
+
 }
 
 export class ArUser extends Connection {    
     private world: ARWorld;
     private pipeline: any;
+    private track: MediaStream;
 
-    private constructor(name: string, world: ARWorld) {
+    private constructor(name: string, world: ARWorld, track: MediaStream) {
         super(name);
         
         this.world = world;
+        this.track = track;
         world.xr_session.addEventListener('selectstart', (event) => {
             this.world.is_finger_down = true;
             this.world.finger_position.set(event.inputSource.gamepad!.axes[0], event.inputSource.gamepad!.axes[1]);
@@ -77,6 +81,7 @@ export class ArUser extends Connection {
             context: xr_context
         });
         renderer.autoClear = false;
+        document.body.appendChild(canvas);
 
         const camera = new PerspectiveCamera();
         camera.matrixAutoUpdate = false;
@@ -96,9 +101,10 @@ export class ArUser extends Connection {
             scene: new Scene(),
             is_finger_down: false,
             finger_position: new Vector2(),
+            canvas: canvas,
         };
 
-        const ar_user = new ArUser(name, world);
+        const ar_user = new ArUser(name, world, canvas.captureStream(30));
 
         // wait for socker to connect
         while (!ar_user.is_socket_connected()) {
@@ -108,10 +114,10 @@ export class ArUser extends Connection {
         return ar_user;
     }
 
-    on_spd_offer(data: any) {
+    on_sdp_offer(data: any) {
     }
 
-    on_spd_answer(data: any) {
+    on_sdp_answer(data: any) {
         const peer = this.peer_connections.get(data.uuid);
         peer?.peer_connection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     }
@@ -121,9 +127,14 @@ export class ArUser extends Connection {
         peer.createOffer().then((offer) => {
             peer.setLocalDescription(offer).then(() => {
                 const msg = JSON.stringify({ 'sdp': peer.localDescription});
-                this.send_message_to_server("spd", msg)
+                this.send_message_to_server("sdp", msg)
+                console.log("sent offer");
             });
         });
+        this.track.getTracks().forEach((track) => {
+            peer.addTrack(track, this.track);
+        });
+
         this.world.xr_session.requestAnimationFrame(this.on_frame);
     }
 

@@ -3,7 +3,7 @@ import './style.css'
 import App from './App.vue'
 import { ArUser } from './src_ar/ar_user';
 
-createApp(App).mount('#app')
+//createApp(App).mount('#app')
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {

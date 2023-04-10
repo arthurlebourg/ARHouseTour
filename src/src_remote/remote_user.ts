@@ -10,10 +10,10 @@ export class RemoteUser extends Connection {
         });
     }
 
-    on_spd_offer(data: any) {
+    on_sdp_offer(data: any) {
     }
 
-    on_spd_answer(data: any) {
+    on_sdp_answer(data: any) {
     }
 
     public start() {

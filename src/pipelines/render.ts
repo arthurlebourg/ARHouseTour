@@ -21,20 +21,18 @@ export const ScreenSharePipeline = (world: ARWorld) => {
     // render the scene with raw camera texture as backaground to CPU canvas
     world.xr_context.bindFramebuffer(world.xr_context.FRAMEBUFFER, null);
 
-    for (let view of world.xr_views) {
-        // @ts-ignore
-        const raw_camera_texture = world.xr_binding.getCameraImage(view.camera)
+    const view = world.xr_views[0];
+    // @ts-ignore
+    const raw_camera_texture = world.xr_binding.getCameraImage(view.camera)
 
-        world.scene.background = new Texture(raw_camera_texture);
+    world.scene.background = new Texture(raw_camera_texture);
 
-        const viewport = world.xr_session.renderState.baseLayer!.getViewport(view)!;
-        world.xr_context.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+    const viewport = world.xr_session.renderState.baseLayer!.getViewport(view)!;
+    world.xr_context.viewport(0, 0, world.xr_context.drawingBufferWidth, world.xr_context.drawingBufferHeight);
+    world.camera.matrix.fromArray(view.transform.matrix);
+    world.camera.projectionMatrix.fromArray(view.projectionMatrix);
+    world.camera.updateMatrixWorld(true);
 
-        world.camera.matrix.fromArray(view.transform.matrix);
-        world.camera.projectionMatrix.fromArray(view.projectionMatrix);
-        world.camera.updateMatrixWorld(true);
-
-        world.renderer.render(world.scene, world.camera);
-    }
+    world.renderer.render(world.scene, world.camera);
     return world;
 }

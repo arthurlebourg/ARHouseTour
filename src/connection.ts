@@ -54,6 +54,7 @@ export abstract class Connection {
             uuid: this.uuid,
             name: this.name,
         });
+        
         return peer;
     }
 
@@ -67,11 +68,11 @@ export abstract class Connection {
         switch (data.type) {
             case "offer_removed":
                 break;
-            case "spd":
+            case "sdp":
                 if (data.type === "offer") {
-                    this.on_spd_offer(data.data);
+                    this.on_sdp_offer(data.data);
                 } else if (data.type === "answer") {
-                    this.on_spd_answer(data.data);
+                    this.on_sdp_answer(data.data);
                 }
                 break;
             case "ice":
@@ -99,8 +100,8 @@ export abstract class Connection {
     }
 
     protected abstract on_data_channel_message(event: MessageEvent): void;
-    protected abstract on_spd_offer(data: any): void;
-    protected abstract on_spd_answer(data: any): void;
+    protected abstract on_sdp_offer(data: any): void;
+    protected abstract on_sdp_answer(data: any): void;
     public abstract start(): void;
 }
 
