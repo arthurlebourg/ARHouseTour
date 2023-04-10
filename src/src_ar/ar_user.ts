@@ -1,4 +1,4 @@
-import { Scene, Vector2, Camera, Renderer, WebGLRenderer, Mesh, BoxGeometry, MeshBasicMaterial } from "three";
+import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera } from "three";
 import { createApp } from "vue";
 
 import { Connection } from "../connection";
@@ -78,6 +78,9 @@ export class ArUser extends Connection {
         });
         renderer.autoClear = false;
 
+        const camera = new PerspectiveCamera();
+        camera.matrixAutoUpdate = false;
+        camera.matrixWorldAutoUpdate = false;
         const world: ARWorld = {
             xr_session: xr_session,
             xr_frame : null!,
@@ -88,7 +91,7 @@ export class ArUser extends Connection {
             xr_hit_test_source: hitTestSource,
             xr_transient_input_hit_test_source: transientInputHitTestSource,
             xr_views: [],
-            camera: new Camera(),
+            camera: camera,
             renderer: renderer,
             scene: new Scene(),
             is_finger_down: false,
