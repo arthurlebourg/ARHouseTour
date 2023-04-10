@@ -53,7 +53,7 @@ wss.on('connection', function (ws) {
     ws.on('message', function (message) {
         const data = JSON.parse(message);
 
-        if (data && data[type] == 'offer_removed') {
+        if (data && data['type'] == 'offer_removed') {
             console.log('Offer removed from ' + data['uuid']);
             for (const [key, value] of clients) {
                 if (value == ws) {
@@ -68,7 +68,7 @@ wss.on('connection', function (ws) {
             if (data['data']['sdp']['type'] === 'offer') {
                 console.log('Received offer from ' + data['uuid']);
                 clients.set(message, ws);
-                wss.broadcast(message);
+                //wss.broadcast(message);
             }
             else if (data['data']['sdp']['type'] === 'answer') {
                 console.log('Received answer from ' + data['uuid']);

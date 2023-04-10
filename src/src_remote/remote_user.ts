@@ -1,12 +1,12 @@
 import { Connection } from "../connection";
 
 export class RemoteUser extends Connection {
-    data_channel: RTCDataChannel;
     constructor(name: string) {
         super(name);
-        this.data_channel = this.peer_connection.createDataChannel("data");
         navigator.mediaDevices.getUserMedia({video: true, audio: true}).then((stream) => {
-            stream.getTracks().forEach(track => this.peer_connection.addTrack(track, stream));
+            stream.getTracks().forEach(track => {
+                this.peer_connections.forEach(connection => connection.peer_connection.addTrack(track, stream))
+            });
         });
     }
 
