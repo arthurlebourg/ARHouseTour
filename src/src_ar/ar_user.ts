@@ -138,6 +138,11 @@ export class ArUser extends Connection {
     public start() {
         const peer = this.addPeerConnection();
         this.stream.getTracks().forEach((track) => {
+            track.applyConstraints({
+                width: 640,
+                height: 480,
+                frameRate: 15,
+            });
             peer.addTrack(track, this.stream);
             console.log("added track");
         });
