@@ -4,7 +4,15 @@ export class RemoteUser extends Connection {
     private constructor(name: string, host_uuid: string, websocket: WebSocket) {
         super(name, websocket);
         navigator.mediaDevices.getUserMedia({video: true, audio: true}).then((stream) => {
-            stream.getTracks().forEach(track => {
+            stream.getTracks().forEach( async track => {
+                if (track.kind === "video")
+                {
+                    await track.applyConstraints({
+                        width: 640,
+                        height: 480,
+                        frameRate: 15,
+                    })
+                }
                 this.peer_connections.forEach(connection => connection.peer_connection.addTrack(track, stream))
             });
         });

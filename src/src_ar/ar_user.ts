@@ -137,8 +137,8 @@ export class ArUser extends Connection {
 
     public start() {
         const peer = this.addPeerConnection();
-        this.stream.getTracks().forEach((track) => {
-            track.applyConstraints({
+        this.stream.getTracks().forEach(async (track) => {
+            await track.applyConstraints({
                 width: 640,
                 height: 480,
                 frameRate: 15,
