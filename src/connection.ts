@@ -45,7 +45,7 @@ export abstract class Connection {
         
         peer.ontrack = this.gotRemoteStream;
         const data_channel = peer.createDataChannel("data", { negotiated: true, id: 0 });
-        data_channel.onopen = () => {console.log("data channel open"); data_channel.send("hello")};
+        data_channel.onopen = this.on_data_channel_open;
         data_channel.onmessage = this.on_data_channel_message;
         const p2p :PeerToPeerConnection = {
             peer_connection: peer,
@@ -126,6 +126,7 @@ export abstract class Connection {
     }
 
     protected abstract on_data_channel_message : (event: MessageEvent) => void;
+    protected abstract on_data_channel_open : (event: Event) => void;
     protected abstract on_sdp_offer : (uuid: string, data: any) => void;
     protected abstract on_sdp_answer : (uuid: string, data: any) => void;
     public abstract start(): void;
@@ -138,5 +139,5 @@ function createUUID() {
       return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
     }
   
-    return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+    return s4() + '-' + s4();
 }

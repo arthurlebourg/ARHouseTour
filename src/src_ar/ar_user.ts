@@ -1,5 +1,6 @@
 import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera } from "three";
 import { createApp } from "vue";
+import { VideoResizer } from 'mediastream-video-resizer';
 
 import { Connection } from "../connection";
 import { pipe } from "./pipeline";
@@ -13,7 +14,7 @@ export type ARWorld = {
     xr_frame: XRFrame,
     xr_reference_space: XRReferenceSpace,
     xr_viewer_space: XRSpace,
-    xr_context: WebGLRenderingContext,
+    xr_context: WebGL2RenderingContext,
     xr_binding: XRWebGLBinding,
     xr_hit_test_source: XRHitTestSource,
     xr_transient_input_hit_test_source: XRTransientInputHitTestSource,
@@ -30,13 +31,26 @@ export type ARWorld = {
 export class ArUser extends Connection {    
     private world: ARWorld;
     private pipeline: any;
+    private FullSizeStream : MediaStream;
     private stream: MediaStream;
+    private videoResizer: VideoResizer;
+    private senders : RTCRtpSender[];
 
     private constructor(name: string, world: ARWorld, stream: MediaStream, socket: WebSocket) {
         super(name, socket);
         
         this.world = world;
-        this.stream = stream;
+
+        this.FullSizeStream = stream;
+
+        this.videoResizer = new VideoResizer();
+
+        const resizedStream = this.videoResizer.start(stream, "video", 100, 100, 25);
+
+        this.stream = resizedStream;
+
+        this.senders = [];
+
         world.xr_session.addEventListener('selectstart', (event) => {
             this.world.is_finger_down = true;
             this.world.finger_position.set(event.inputSource.gamepad!.axes[0], event.inputSource.gamepad!.axes[1]);
@@ -64,7 +78,8 @@ export class ArUser extends Connection {
         });
 
         const canvas = document.createElement('canvas');
-        const xr_context = canvas.getContext('webgl', { xrCompatible: true })!;
+
+        const xr_context = canvas.getContext('webgl2', { xrCompatible: true, antialias: false })!;
 
         xr_session.updateRenderState({ baseLayer: new XRWebGLLayer(xr_session, xr_context) });
 
@@ -81,7 +96,7 @@ export class ArUser extends Connection {
             context: xr_context
         });
         renderer.autoClear = false;
-        document.body.appendChild(canvas);
+        //document.body.appendChild(canvas);
 
         const camera = new PerspectiveCamera();
         camera.matrixAutoUpdate = false;
@@ -104,7 +119,8 @@ export class ArUser extends Connection {
             canvas: canvas,
         };
 
-        const stream = canvas.captureStream(30);
+        const stream = canvas.captureStream(25);
+
 
         const ar_user = new ArUser(name, world, stream, socket);
 
@@ -131,7 +147,7 @@ export class ArUser extends Connection {
     public start() {
         const peer = this.addPeerConnection();
         this.stream.getTracks().forEach((track) => {
-            peer.addTrack(track, this.stream);
+            this.senders.push(peer.addTrack(track, this.stream));
             console.log("added track");
         });
 
@@ -147,7 +163,25 @@ export class ArUser extends Connection {
 
     on_data_channel_message = (event: MessageEvent<any>) => {
         console.log("received message: " + event.data);
+        const data = JSON.parse(event.data)
+        if (data["type"] == "height")
+        {
+            // @ts-ignore
+            this.stream = this.videoResizer.start(this.FullSizeStream, "video", data["height"] * this.world.xr_views[0].camera.width / this.world.xr_views[0].camera.height, data["height"], 25);
+
+            this.senders.forEach((sender) => {
+                this.stream.getTracks().forEach((track) => {
+                    sender.replaceTrack(track)
+                });
+            });
+
+            console.log("size changed")
+        }
         
+    }
+
+    on_data_channel_open = (event: Event) => {
+        console.log("data channel opened");
     }
 
     private on_frame = (time: number, xr_frame: XRFrame) => {

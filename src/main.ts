@@ -1,10 +1,6 @@
-import { createApp } from 'vue'
 import './style.css'
-import App from './App.vue'
 import { ArUser } from './src_ar/ar_user';
 import { RemoteUser } from './src_remote/remote_user';
-
-//createApp(App).mount('#app')
 
 document.addEventListener('DOMContentLoaded', async () => {
     const host = window.location.search;
@@ -31,10 +27,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         }
         else
-        {
-            const text = document.createElement('p');
-            text.textContent = 'AR not supported';
-            document.body.appendChild(text);
+        { 
+            if (!host)
+            {
+                const text = document.createElement('p');
+                text.textContent = 'AR not supported';
+                document.body.appendChild(text);
+            }
         }
     }
 );

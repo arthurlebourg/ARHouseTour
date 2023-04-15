@@ -83,4 +83,10 @@ export class RemoteUser extends Connection {
         console.log("on_data_channel_message from RemoteUser")
         
     }
+
+    on_data_channel_open = (event: Event) => {
+        // send height of screen to host
+        console.log(event);
+        (event.currentTarget as RTCDataChannel).send(JSON.stringify({type: "height", height: window.innerHeight}));
+    }
 }
