@@ -23,22 +23,21 @@ export type ARWorld = {
     scene: Scene,
     is_finger_down: boolean,
     finger_position: Vector2,
-    canvas: HTMLCanvasElement;
-
+    canvas: HTMLCanvasElement,
+    screenshare_renderer: Renderer,
+    screenshare_canvas : HTMLCanvasElement,
+    screenshare_scene : Scene,
 }
 
 export class ArUser extends Connection {    
     private world: ARWorld;
     private pipeline: any;
-    private FullSizeStream : MediaStream;
     private stream: MediaStream;
 
     private constructor(name: string, world: ARWorld, stream: MediaStream, socket: WebSocket) {
         super(name, socket);
         
         this.world = world;
-
-        this.FullSizeStream = stream;
 
         this.stream = stream;
 
@@ -87,7 +86,17 @@ export class ArUser extends Connection {
             context: xr_context
         });
         renderer.autoClear = false;
-        //document.body.appendChild(canvas);
+
+        const screenshare_canvas = document.createElement('canvas');
+
+        const screenshare_context = screenshare_canvas.getContext('webgl2')!;
+
+        const screenshare_renderer = new WebGLRenderer({
+            alpha: true,
+            canvas: screenshare_canvas,
+            preserveDrawingBuffer: true,
+            context: screenshare_context,
+        })
 
         const camera = new PerspectiveCamera();
         camera.matrixAutoUpdate = false;
@@ -108,9 +117,12 @@ export class ArUser extends Connection {
             is_finger_down: false,
             finger_position: new Vector2(),
             canvas: canvas,
+            screenshare_canvas: screenshare_canvas,
+            screenshare_renderer : screenshare_renderer,
+            screenshare_scene: new Scene(),
         };
 
-        const stream = canvas.captureStream(15);
+        const stream = screenshare_canvas.captureStream(15);
 
 
         const ar_user = new ArUser(name, world, stream, socket);
@@ -137,15 +149,13 @@ export class ArUser extends Connection {
 
     public start() {
         const peer = this.addPeerConnection();
-        this.stream.getTracks().forEach(async (track) => {
-            await track.applyConstraints({
-                width: 640,
-                height: 480,
-                frameRate: 15,
-            });
+
+        for (const track of this.stream.getTracks())
+        {
+
             peer.addTrack(track, this.stream);
             console.log("added track");
-        });
+        }
 
         peer.createOffer().then((offer) => {
             peer.setLocalDescription(offer).then(() => {
