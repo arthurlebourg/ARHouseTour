@@ -33,11 +33,9 @@ export const ScreenSharePipeline = (world: ARWorld) => {
 
     //world.scene.background.repeat.set(5,5);
     // @ts-ignore
-    world.renderer.setSize(view.camera.width, view.camera.height);
-    
-    world.camera.matrix.fromArray(view.transform.matrix);
-    world.camera.projectionMatrix.fromArray(view.projectionMatrix);
-    world.camera.updateMatrixWorld(true);
+    //world.renderer.setSize(view.camera.width, view.camera.height);
+    const viewport = world.xr_session.renderState.baseLayer!.getViewport(view)!;
+    world.renderer.setSize(viewport.width, viewport.height);
 
     world.renderer.render(world.scene, world.camera);
 
@@ -50,7 +48,7 @@ export const ScreenSharePipeline = (world: ARWorld) => {
 
     //world.screenshare_scene.background.repeat.set(5,5);
 
-    world.screenshare_renderer.setSize(world.canvas.width / 3, world.canvas.height / 3);
+    world.screenshare_renderer.setSize(viewport.width / 3, viewport.height / 3);
 
     world.screenshare_renderer.render(world.screenshare_scene, world.camera);
 
