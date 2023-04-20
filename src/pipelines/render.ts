@@ -31,9 +31,6 @@ export const ScreenSharePipeline = (world: ARWorld) => {
 
     world.scene.background = new Texture(raw_camera_texture);
 
-    //world.scene.background.repeat.set(5,5);
-    // @ts-ignore
-    //world.renderer.setSize(view.camera.width, view.camera.height);
     const viewport = world.xr_session.renderState.baseLayer!.getViewport(view)!;
     world.renderer.setSize(viewport.width, viewport.height);
 
@@ -44,16 +41,9 @@ export const ScreenSharePipeline = (world: ARWorld) => {
 
     // render for sharing
 
-    world.screenshare_scene.background = new CanvasTexture(world.canvas);
-
-    //world.screenshare_scene.background.repeat.set(5,5);
-
-    world.screenshare_renderer.setSize(viewport.width / 3, viewport.height / 3);
-
-    world.screenshare_renderer.render(world.screenshare_scene, world.camera);
-
-    world.screenshare_scene.background.dispose()
-    world.screenshare_scene.background = null;
+    world.screenshare_canvas.width = viewport.width / 3
+    world.screenshare_canvas.height = viewport.height / 3
+    world.screenshare_context.drawImage(world.canvas, 0, 0, viewport.width / 3, viewport.height / 3)
 
     return world;
 }

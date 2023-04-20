@@ -24,9 +24,8 @@ export type ARWorld = {
     is_finger_down: boolean,
     finger_position: Vector2,
     canvas: HTMLCanvasElement,
-    screenshare_renderer: Renderer,
     screenshare_canvas : HTMLCanvasElement,
-    screenshare_scene : Scene,
+    screenshare_context : CanvasRenderingContext2D,
 }
 
 export class ArUser extends Connection {    
@@ -62,8 +61,8 @@ export class ArUser extends Connection {
             domOverlay: { root: overlay },
             // @ts-ignore
             depthSensing: {
-                usagePreference: ["cpu-optimized", "gpu-optimized"],
-                dataFormatPreference: ["luminance-alpha", "float32"],
+                usagePreference: ["cpu-optimized"],
+                dataFormatPreference: ["luminance-alpha"],
             },
         });
 
@@ -89,14 +88,7 @@ export class ArUser extends Connection {
 
         const screenshare_canvas = document.createElement('canvas');
 
-        const screenshare_context = screenshare_canvas.getContext('webgl2')!;
-
-        const screenshare_renderer = new WebGLRenderer({
-            alpha: true,
-            canvas: screenshare_canvas,
-            preserveDrawingBuffer: true,
-            context: screenshare_context,
-        })
+        const screenshare_context = screenshare_canvas.getContext('2d')!;
 
         const camera = new PerspectiveCamera();
         camera.matrixAutoUpdate = false;
@@ -118,12 +110,10 @@ export class ArUser extends Connection {
             finger_position: new Vector2(),
             canvas: canvas,
             screenshare_canvas: screenshare_canvas,
-            screenshare_renderer : screenshare_renderer,
-            screenshare_scene: new Scene(),
+            screenshare_context: screenshare_context,
         };
 
         const stream = screenshare_canvas.captureStream(15);
-
 
         const ar_user = new ArUser(name, world, stream, socket);
 
@@ -183,6 +173,11 @@ export class ArUser extends Connection {
 
     private on_frame = (time: number, xr_frame: XRFrame) => {
         this.world.xr_session.requestAnimationFrame(this.on_frame);
+
+        /*for (const track of this.stream.getTracks())
+        {
+            console.log(track.getSettings())
+        }*/
 
         const pose = xr_frame.getViewerPose(this.world.xr_reference_space);
         this.world.xr_frame = xr_frame;
