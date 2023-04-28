@@ -17,6 +17,8 @@ export class RemoteUser extends Connection {
             });
         });
         this.addPeerConnection();
+
+        this.remote_video.style.height = "100vh";
     }
 
     public static async create(name: string, host_uuid: string, websocket: WebSocket): Promise<RemoteUser | null>{

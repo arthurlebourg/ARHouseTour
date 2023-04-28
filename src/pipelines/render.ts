@@ -14,6 +14,7 @@ export const RenderPipeline = (world: ARWorld) => {
         world.camera.updateMatrixWorld(true);
 
         world.renderer.render(world.scene, world.camera);
+        //world.xr_context.clear(world.xr_context.COLOR_BUFFER_BIT | world.xr_context.DEPTH_BUFFER_BIT);
     }
     return world;
 }
@@ -36,14 +37,19 @@ export const ScreenSharePipeline = (world: ARWorld) => {
 
     world.renderer.render(world.scene, world.camera);
 
+    //world.xr_context.deleteTexture(raw_camera_texture);
     world.scene.background.dispose()
     world.scene.background = null;
 
     // render for sharing
 
-    world.screenshare_canvas.width = viewport.width / 3
-    world.screenshare_canvas.height = viewport.height / 3
-    world.screenshare_context.drawImage(world.canvas, 0, 0, viewport.width / 3, viewport.height / 3)
+    const coef = 10;
+
+    world.screenshare_canvas.width = viewport.width / coef
+    world.screenshare_canvas.height = viewport.height / coef
+    world.screenshare_context.drawImage(world.canvas, 0, 0, viewport.width / coef, viewport.height / coef)
+
+    world.xr_context.clear(world.xr_context.COLOR_BUFFER_BIT | world.xr_context.DEPTH_BUFFER_BIT);
 
     return world;
 }

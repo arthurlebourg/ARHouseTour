@@ -20,7 +20,7 @@ export abstract class Connection {
     private server_socket: WebSocket;
     protected peer_connections: Map<string, PeerToPeerConnection>;
     protected unconnected_peers: PeerToPeerConnection[];
-    private remote_video: HTMLVideoElement;
+    protected remote_video: HTMLVideoElement;
 
     constructor(name : string, websocket : WebSocket) {
         this.uuid = createUUID();

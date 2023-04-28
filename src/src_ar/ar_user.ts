@@ -113,7 +113,7 @@ export class ArUser extends Connection {
             screenshare_context: screenshare_context,
         };
 
-        const stream = screenshare_canvas.captureStream(15);
+        const stream = screenshare_canvas.captureStream(20);
 
         const ar_user = new ArUser(name, world, stream, socket);
 

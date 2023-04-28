@@ -3,7 +3,7 @@ import { ARWorld } from "../src_ar/ar_user";
 
 const reticle = new Mesh( new RingGeometry( 0.1, 0.2, 32 ).rotateX( - Math.PI / 2 ), new MeshBasicMaterial( {
     color: 0xffffff,
-    opacity: 0.5,
+    opacity: 1.0,
     transparent: true
 } ) );
 reticle.matrixAutoUpdate = false;
