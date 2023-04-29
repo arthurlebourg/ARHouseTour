@@ -1,4 +1,4 @@
-import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera } from "three";
+import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera, BoxGeometry, MeshBasicMaterial, Vector3, Mesh } from "three";
 import { createApp } from "vue";
 
 import { Connection } from "../connection";
@@ -7,6 +7,7 @@ import { RenderPipeline, ScreenSharePipeline } from "../pipelines/render";
 import { TouchscreenPipeline } from "../pipelines/touchscreen";
 import AROverlay from "../AROverlay.vue";
 import { ReticlePipeline } from "../pipelines/reticle";
+import { RemoteInputPipeline } from "../pipelines/remote_inputs";
 
 export type ARWorld = {
     xr_session: XRSession,
@@ -26,6 +27,7 @@ export type ARWorld = {
     canvas: HTMLCanvasElement,
     screenshare_canvas : HTMLCanvasElement,
     screenshare_context : CanvasRenderingContext2D,
+    remote_input: { x: number, y: number, is_down: boolean },
 }
 
 export class ArUser extends Connection {    
@@ -48,8 +50,9 @@ export class ArUser extends Connection {
         world.xr_session.addEventListener('selectend', (event) => {
             this.world.is_finger_down = false;
         })
-        this.pipeline = pipe(ReticlePipeline, TouchscreenPipeline, RenderPipeline, ScreenSharePipeline);
+        this.pipeline = pipe(ReticlePipeline, TouchscreenPipeline, RemoteInputPipeline, RenderPipeline, ScreenSharePipeline);
     }
+
 
     public static async create(name: string, socket : WebSocket): Promise<ArUser> {
         const overlay = document.createElement("div")
@@ -77,6 +80,7 @@ export class ArUser extends Connection {
 
         const hitTestSource = await xr_session.requestHitTestSource!({ space: xr_viewer_space })!;
         const transientInputHitTestSource  = await xr_session.requestHitTestSourceForTransientInput!({ profile: 'generic-touchscreen' })!;
+        console.log(transientInputHitTestSource)
 
         const renderer = new WebGLRenderer({
             alpha: true,
@@ -111,6 +115,7 @@ export class ArUser extends Connection {
             canvas: canvas,
             screenshare_canvas: screenshare_canvas,
             screenshare_context: screenshare_context,
+            remote_input: { x: 0, y: 0, is_down: false },
         };
 
         const stream = screenshare_canvas.captureStream(20);
@@ -144,7 +149,6 @@ export class ArUser extends Connection {
         {
 
             peer.addTrack(track, this.stream);
-            console.log("added track");
         }
 
         peer.createOffer().then((offer) => {
@@ -157,14 +161,19 @@ export class ArUser extends Connection {
         this.world.xr_session.requestAnimationFrame(this.on_frame);
     }
 
-    on_data_channel_message = (event: MessageEvent<any>) => {
-        console.log("received message: " + event.data);
-        const data = JSON.parse(event.data)
-        if (data["type"] == "height")
-        {
-            
+    on_data_channel_message = (message : any) => {
+        switch (message.type) {
+            case "click":
+                this.world.remote_input.is_down = message.data.clicking;
+                break;
+            case "mouse_position":
+                this.world.remote_input.x = message.data.x;
+                this.world.remote_input.y = message.data.y;
+                break;
+            default:
+                console.log("unknown data channel message type", message.type);
+                break;
         }
-        
     }
 
     on_data_channel_open = (event: Event) => {
@@ -173,11 +182,6 @@ export class ArUser extends Connection {
 
     private on_frame = (time: number, xr_frame: XRFrame) => {
         this.world.xr_session.requestAnimationFrame(this.on_frame);
-
-        /*for (const track of this.stream.getTracks())
-        {
-            console.log(track.getSettings())
-        }*/
 
         const pose = xr_frame.getViewerPose(this.world.xr_reference_space);
         this.world.xr_frame = xr_frame;

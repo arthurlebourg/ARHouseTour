@@ -19,6 +19,23 @@ export class RemoteUser extends Connection {
         this.addPeerConnection();
 
         this.remote_video.style.height = "100vh";
+        this.remote_video.onclick = (e: MouseEvent) => {
+            
+            for (const peer of this.peer_connections.values()) {
+                this.send_message_to_peer(peer, "click", {clicking: true});
+            }
+        }
+
+        this.remote_video.onmouseover = (e: MouseEvent) => {
+            // @ts-ignore
+            const rect = e.target!.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 2 - 1; //x position within the element.
+            const y = ((e.clientY - rect.top) / rect.height) * 2 - 1; //y position within the element.
+
+            for (const peer of this.peer_connections.values()) {
+                this.send_message_to_peer(peer, "mouse_position", {x: x, y: y});
+            }
+        }
     }
 
     public static async create(name: string, host_uuid: string, websocket: WebSocket): Promise<RemoteUser | null>{
@@ -83,20 +100,17 @@ export class RemoteUser extends Connection {
     }
 
     on_sdp_answer = (uuid:string, data: any) => {
-        console.log("on_sdp_answer from RemoteUser")
     }
 
     public start() {
     }
 
     on_data_channel_message = (event: MessageEvent<any>) => {
-        console.log("on_data_channel_message from RemoteUser")
         
     }
 
     on_data_channel_open = (event: Event) => {
         // send height of screen to host
-        console.log(event);
         (event.currentTarget as RTCDataChannel).send(JSON.stringify({type: "height", height: window.innerHeight}));
     }
 }

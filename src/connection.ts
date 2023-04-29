@@ -1,3 +1,5 @@
+import { Mesh } from "three";
+
 const peerConnectionConfig = {
     'iceServers': [
       { 'urls': 'stun:stun.stunprotocol.org:3478' },
@@ -12,6 +14,7 @@ export type PeerToPeerConnection =
     uuid: string;
     name: string;
     ice_candidates: RTCIceCandidate[];
+    buffer: string;
 }
 
 export abstract class Connection {
@@ -21,6 +24,7 @@ export abstract class Connection {
     protected peer_connections: Map<string, PeerToPeerConnection>;
     protected unconnected_peers: PeerToPeerConnection[];
     protected remote_video: HTMLVideoElement;
+    protected object_list: Mesh[];
 
     constructor(name : string, websocket : WebSocket) {
         this.uuid = createUUID();
@@ -34,6 +38,7 @@ export abstract class Connection {
         this.remote_video = document.createElement('video');
         this.remote_video.autoplay = true;
         document.body.appendChild(this.remote_video);
+        this.object_list = [];
     }
 
     protected is_socket_connected() {
@@ -46,13 +51,14 @@ export abstract class Connection {
         peer.ontrack = this.gotRemoteStream;
         const data_channel = peer.createDataChannel("data", { negotiated: true, id: 0 });
         data_channel.onopen = this.on_data_channel_open;
-        data_channel.onmessage = this.on_data_channel_message;
+        data_channel.onmessage = this.receive_chunked_message;
         const p2p :PeerToPeerConnection = {
             peer_connection: peer,
             data_channel: data_channel,
             uuid: this.uuid,
             name: this.name,
             ice_candidates: [],
+            buffer: ""
         }
 
         peer.onicecandidate = (event) => {
@@ -112,7 +118,6 @@ export abstract class Connection {
     }
 
     private gotRemoteStream = (event: RTCTrackEvent) => {
-        console.log("Got remote stream");
         this.remote_video.srcObject = event.streams[0];
     }
 
@@ -125,7 +130,59 @@ export abstract class Connection {
         }));
     }
 
-    protected abstract on_data_channel_message : (event: MessageEvent) => void;
+    protected send_message_to_peer = (peer: PeerToPeerConnection, type: string, data: any) => {
+        const message = JSON.stringify({
+            type: type,
+            data: data,
+        });
+
+        // chunk message into 16kb chunks
+        const chunk_size = 16384;
+        const num_chunks = Math.ceil(message.length / chunk_size);
+        for (let i = 0; i < num_chunks; i++) {
+            const start = i * chunk_size;
+            const end = Math.min(message.length, (i + 1) * chunk_size);
+            const chunk = message.slice(start, end);
+            peer.data_channel.send(JSON.stringify({
+                'num_chunks': num_chunks,
+                'chunk_num': i,
+                'chunk': chunk,
+                'uuid': this.uuid,
+                }));
+        }
+    }
+
+    protected receive_chunked_message = (event: MessageEvent) => {
+        const message = event.data;
+        const data = JSON.parse(message);
+        const num_chunks = data['num_chunks'];
+        const chunk_num = data['chunk_num'];
+        const chunk = data['chunk'];
+        const peer = this.peer_connections.get(data.uuid)!;
+        if (peer.buffer === undefined) {
+            peer.buffer = "";
+        }
+        peer.buffer += chunk;
+        if (chunk_num === num_chunks - 1) {
+            this.parse_message(peer.buffer);
+            peer.buffer = "";
+        }
+        return data;
+    }
+
+    private parse_message = (message: string) =>
+    {
+        const data = JSON.parse(message);
+        switch (data.type) {
+            case "new_object":
+                this.object_list.push(data.data);
+            default:
+                this.on_data_channel_message(data);
+                break;
+        }
+    }
+
+    protected abstract on_data_channel_message : (data : any) => void;
     protected abstract on_data_channel_open : (event: Event) => void;
     protected abstract on_sdp_offer : (uuid: string, data: any) => void;
     protected abstract on_sdp_answer : (uuid: string, data: any) => void;
