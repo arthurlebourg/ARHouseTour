@@ -8,12 +8,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log("host: {"+host+"}")
     if (host)
     {
-        const user = RemoteUser.create('bite', host.slice(1), socket).then(user => {
+        RemoteUser.create('bite', host.slice(1), socket).then(user => {
             if (user)
             {
                 user.start();
             }
-
         });
     }
     if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {

@@ -1,4 +1,4 @@
-import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera, BoxGeometry, MeshBasicMaterial, Vector3, Mesh } from "three";
+import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera, Mesh, RingGeometry, MeshBasicMaterial } from "three";
 import { createApp } from "vue";
 
 import { Connection } from "../connection";
@@ -28,6 +28,7 @@ export type ARWorld = {
     screenshare_canvas : HTMLCanvasElement,
     screenshare_context : CanvasRenderingContext2D,
     remote_input: { x: number, y: number, is_down: boolean },
+    reticle: Mesh,
 }
 
 export class ArUser extends Connection {    
@@ -42,6 +43,25 @@ export class ArUser extends Connection {
 
         this.stream = stream;
 
+        if (this.object_list.length > 0)
+        {
+            document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
+        }
+        else
+        {
+            document.getElementById("obj_name")!.textContent = "No objects";
+        }
+        
+        document.getElementById("left_arrow")!.onclick = () => {
+            this.current_selected_object = (this.current_selected_object - 1) % this.object_list.length;
+            document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
+        }
+
+        document.getElementById("right_arrow")!.onclick = () => {
+            this.current_selected_object = (this.current_selected_object + 1) % this.object_list.length;
+            document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
+        }
+
         world.xr_session.addEventListener('selectstart', (event) => {
             this.world.is_finger_down = true;
             this.world.finger_position.set(event.inputSource.gamepad!.axes[0], event.inputSource.gamepad!.axes[1]);
@@ -49,16 +69,23 @@ export class ArUser extends Connection {
 
         world.xr_session.addEventListener('selectend', (event) => {
             this.world.is_finger_down = false;
+            const obj = this.object_list[this.current_selected_object].clone();
+            obj.matrix.copy(this.world.reticle.matrix);
+            obj.matrix.decompose(obj.position, obj.quaternion, obj.scale);
+            this.world.scene.add(obj);
         })
+
         this.pipeline = pipe(ReticlePipeline, TouchscreenPipeline, RemoteInputPipeline, RenderPipeline, ScreenSharePipeline);
     }
 
 
     public static async create(name: string, socket : WebSocket): Promise<ArUser> {
         const overlay = document.createElement("div")
-
-        createApp(AROverlay).mount('#ar_overlay')!;
+        overlay.id = "overlay";
+        overlay.className = "ARoverlay";
         document.body.appendChild(overlay);
+
+        createApp(AROverlay).mount('#overlay');
         const xr_session = await navigator.xr!.requestSession('immersive-ar', {
             requiredFeatures: ['hit-test', 'dom-overlay', 'camera-access', 'depth-sensing'],
             domOverlay: { root: overlay },
@@ -80,7 +107,6 @@ export class ArUser extends Connection {
 
         const hitTestSource = await xr_session.requestHitTestSource!({ space: xr_viewer_space })!;
         const transientInputHitTestSource  = await xr_session.requestHitTestSourceForTransientInput!({ profile: 'generic-touchscreen' })!;
-        console.log(transientInputHitTestSource)
 
         const renderer = new WebGLRenderer({
             alpha: true,
@@ -97,6 +123,17 @@ export class ArUser extends Connection {
         const camera = new PerspectiveCamera();
         camera.matrixAutoUpdate = false;
         camera.matrixWorldAutoUpdate = false;
+
+        const reticle = new Mesh( new RingGeometry( 0.1, 0.2, 32 ).rotateX( - Math.PI / 2 ), new MeshBasicMaterial( {
+            color: 0xffffff,
+            opacity: 1.0,
+            transparent: true
+        } ) );
+        reticle.matrixAutoUpdate = false;
+
+        const scene = new Scene();
+        scene.add(reticle);
+
         const world: ARWorld = {
             xr_session: xr_session,
             xr_frame : null!,
@@ -109,13 +146,14 @@ export class ArUser extends Connection {
             xr_views: [],
             camera: camera,
             renderer: renderer,
-            scene: new Scene(),
+            scene: scene,
             is_finger_down: false,
             finger_position: new Vector2(),
             canvas: canvas,
             screenshare_canvas: screenshare_canvas,
             screenshare_context: screenshare_context,
             remote_input: { x: 0, y: 0, is_down: false },
+            reticle: reticle,
         };
 
         const stream = screenshare_canvas.captureStream(20);
@@ -158,17 +196,17 @@ export class ArUser extends Connection {
             });
         });
 
+        this.add_object("chair/scene.gltf", "chair");
+
         this.world.xr_session.requestAnimationFrame(this.on_frame);
     }
 
     on_data_channel_message = (message : any) => {
         switch (message.type) {
-            case "click":
-                this.world.remote_input.is_down = message.data.clicking;
-                break;
             case "mouse_position":
                 this.world.remote_input.x = message.data.x;
                 this.world.remote_input.y = message.data.y;
+                this.world.remote_input.is_down = message.data.is_down;
                 break;
             default:
                 console.log("unknown data channel message type", message.type);

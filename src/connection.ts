@@ -1,4 +1,5 @@
 import { Mesh } from "three";
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 const peerConnectionConfig = {
     'iceServers': [
@@ -21,10 +22,12 @@ export abstract class Connection {
     private uuid: string;
     private name: string;
     private server_socket: WebSocket;
+    private GLTFLoader: GLTFLoader;
     protected peer_connections: Map<string, PeerToPeerConnection>;
     protected unconnected_peers: PeerToPeerConnection[];
     protected remote_video: HTMLVideoElement;
     protected object_list: Mesh[];
+    protected current_selected_object: number;
 
     constructor(name : string, websocket : WebSocket) {
         this.uuid = createUUID();
@@ -39,6 +42,9 @@ export abstract class Connection {
         this.remote_video.autoplay = true;
         document.body.appendChild(this.remote_video);
         this.object_list = [];
+
+        this.GLTFLoader = new GLTFLoader();
+        this.current_selected_object = 0;
     }
 
     protected is_socket_connected() {
@@ -159,7 +165,7 @@ export abstract class Connection {
         const chunk_num = data['chunk_num'];
         const chunk = data['chunk'];
         const peer = this.peer_connections.get(data.uuid)!;
-        if (peer.buffer === undefined) {
+        if (!peer.buffer) {
             peer.buffer = "";
         }
         peer.buffer += chunk;
@@ -180,6 +186,19 @@ export abstract class Connection {
                 this.on_data_channel_message(data);
                 break;
         }
+    }
+
+    protected add_object = (object: string, name : string) => {
+        this.GLTFLoader.load(object, (gltf) => {
+            const obj = new Mesh();
+            obj.add(gltf.scene);
+            obj.name = name;
+            this.object_list.push(obj);
+            for (const peer of this.peer_connections.values()) {
+                this.send_message_to_peer(peer, "new_object", obj);
+            }
+        });
+
     }
 
     protected abstract on_data_channel_message : (data : any) => void;

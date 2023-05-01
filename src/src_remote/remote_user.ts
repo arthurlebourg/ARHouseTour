@@ -19,21 +19,14 @@ export class RemoteUser extends Connection {
         this.addPeerConnection();
 
         this.remote_video.style.height = "100vh";
-        this.remote_video.onclick = (e: MouseEvent) => {
-            
-            for (const peer of this.peer_connections.values()) {
-                this.send_message_to_peer(peer, "click", {clicking: true});
-            }
-        }
 
-        this.remote_video.onmouseover = (e: MouseEvent) => {
+        this.remote_video.onclick = (e: MouseEvent) => {
             // @ts-ignore
             const rect = e.target!.getBoundingClientRect();
             const x = ((e.clientX - rect.left) / rect.width) * 2 - 1; //x position within the element.
             const y = ((e.clientY - rect.top) / rect.height) * 2 - 1; //y position within the element.
-
             for (const peer of this.peer_connections.values()) {
-                this.send_message_to_peer(peer, "mouse_position", {x: x, y: y});
+                this.send_message_to_peer(peer, "mouse_position", {x: x, y: y, is_down: true});
             }
         }
     }

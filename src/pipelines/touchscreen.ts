@@ -1,4 +1,3 @@
-import { BoxGeometry, Mesh, MeshBasicMaterial } from "three";
 import { ARWorld } from "../src_ar/ar_user";
 
 export const TouchscreenPipeline = (world: ARWorld) => {
@@ -15,11 +14,8 @@ export const TouchscreenPipeline = (world: ARWorld) => {
                     const hitPose = res[0].getPose(world.xr_reference_space);
                     if (hitPose)
                     {
-                        const box = new Mesh(new BoxGeometry( 0.1, 0.1, 0.1 ), new MeshBasicMaterial({ color: 0xff0000 }));
-                        world.scene.add(box);
-                        box.position.set(hitPose.transform.position.x, hitPose.transform.position.y, hitPose.transform.position.z);
-                        box.quaternion.set(hitPose.transform.orientation.x, hitPose.transform.orientation.y, hitPose.transform.orientation.z, hitPose.transform.orientation.w);
-                        box.updateMatrixWorld(true);
+                        world.reticle.matrix.fromArray(hitPose.transform.matrix);
+                        world.reticle.updateMatrixWorld(true);
                     }
                 }
             }
