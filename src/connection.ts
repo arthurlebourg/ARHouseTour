@@ -22,7 +22,7 @@ export abstract class Connection {
     private uuid: string;
     private name: string;
     private server_socket: WebSocket;
-    private GLTFLoader: GLTFLoader;
+    public GLTFLoader: GLTFLoader;
     protected peer_connections: Map<string, PeerToPeerConnection>;
     protected unconnected_peers: PeerToPeerConnection[];
     protected remote_video: HTMLVideoElement;
@@ -182,22 +182,28 @@ export abstract class Connection {
         switch (data.type) {
             case "new_object":
                 this.object_list.push(data.data);
+                if (this.object_list.length == 1)
+                {
+                    document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
+                }
             default:
                 this.on_data_channel_message(data);
                 break;
         }
     }
 
-    protected add_object = (object: string, name : string) => {
-        this.GLTFLoader.load(object, (gltf) => {
-            const obj = new Mesh();
-            obj.add(gltf.scene);
-            obj.name = name;
-            this.object_list.push(obj);
-            for (const peer of this.peer_connections.values()) {
-                this.send_message_to_peer(peer, "new_object", obj);
-            }
-        });
+    protected add_object = (object: Mesh, name : string) => {
+        object.name = name;
+        object.castShadow = true;
+        this.object_list.push(object);
+        if (this.object_list.length == 1)
+        {
+            document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
+        }
+        for (const peer of this.peer_connections.values()) {
+            const payload = {obj: object, matrix: object.matrix};
+            this.send_message_to_peer(peer, "new_object", payload);
+        }
 
     }
 

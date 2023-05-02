@@ -1,18 +1,17 @@
-import { Mesh, MeshBasicMaterial, RingGeometry } from "three";
 import { ARWorld } from "../src_ar/ar_user";
 
-
-
 export const ReticlePipeline = (world: ARWorld) => {
-
-    const hitResults = world.xr_frame.getHitTestResults(world.xr_hit_test_source);
-    if (hitResults.length > 0 && world.reticle)
+    if (!world.is_finger_down)
     {
-        const hitPose = hitResults[0].getPose(world.xr_reference_space);
-        if (hitPose)
+        const hitResults = world.xr_frame.getHitTestResults(world.xr_hit_test_source);
+        if (hitResults.length > 0 && world.reticle)
         {
-            world.reticle.matrix.fromArray(hitPose.transform.matrix);
-            world.reticle.updateMatrixWorld(true);
+            const hitPose = hitResults[0].getPose(world.xr_reference_space);
+            if (hitPose)
+            {
+                world.reticle.matrix.fromArray(hitPose.transform.matrix);
+                world.reticle.updateMatrixWorld(true);
+            }
         }
     }
 

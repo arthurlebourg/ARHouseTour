@@ -1,4 +1,4 @@
-import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera, Mesh, RingGeometry, MeshBasicMaterial } from "three";
+import { Scene, Vector2, Camera, Renderer, WebGLRenderer, PerspectiveCamera, Mesh, RingGeometry, MeshBasicMaterial, DirectionalLight, ShadowMaterial, PlaneGeometry, PCFSoftShadowMap, AmbientLightProbe } from "three";
 import { createApp } from "vue";
 
 import { Connection } from "../connection";
@@ -8,6 +8,8 @@ import { TouchscreenPipeline } from "../pipelines/touchscreen";
 import AROverlay from "../AROverlay.vue";
 import { ReticlePipeline } from "../pipelines/reticle";
 import { RemoteInputPipeline } from "../pipelines/remote_inputs";
+
+type XRLightProbe = { probeSpace : XRSpace, onreflectionchange: Function };
 
 export type ARWorld = {
     xr_session: XRSession,
@@ -19,6 +21,7 @@ export type ARWorld = {
     xr_hit_test_source: XRHitTestSource,
     xr_transient_input_hit_test_source: XRTransientInputHitTestSource,
     xr_views: XRView[],
+    xr_light_probe: XRLightProbe,
     camera: Camera,
     renderer: Renderer,
     scene: Scene,
@@ -29,6 +32,9 @@ export type ARWorld = {
     screenshare_context : CanvasRenderingContext2D,
     remote_input: { x: number, y: number, is_down: boolean },
     reticle: Mesh,
+    directional_light: DirectionalLight,
+    light_probe: AmbientLightProbe,
+    shadow_plane: Mesh,
 }
 
 export class ArUser extends Connection {    
@@ -43,15 +49,6 @@ export class ArUser extends Connection {
 
         this.stream = stream;
 
-        if (this.object_list.length > 0)
-        {
-            document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
-        }
-        else
-        {
-            document.getElementById("obj_name")!.textContent = "No objects";
-        }
-        
         document.getElementById("left_arrow")!.onclick = () => {
             this.current_selected_object = (this.current_selected_object - 1) % this.object_list.length;
             document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
@@ -62,6 +59,10 @@ export class ArUser extends Connection {
             document.getElementById("obj_name")!.textContent = this.object_list[this.current_selected_object].name;
         }
 
+        (document.getElementById("cast_shadows")!).onchange = () => {
+            this.world.directional_light.castShadow = (document.getElementById("cast_shadows")! as HTMLInputElement).checked;
+        }
+
         world.xr_session.addEventListener('selectstart', (event) => {
             this.world.is_finger_down = true;
             this.world.finger_position.set(event.inputSource.gamepad!.axes[0], event.inputSource.gamepad!.axes[1]);
@@ -70,8 +71,8 @@ export class ArUser extends Connection {
         world.xr_session.addEventListener('selectend', (event) => {
             this.world.is_finger_down = false;
             const obj = this.object_list[this.current_selected_object].clone();
-            obj.matrix.copy(this.world.reticle.matrix);
-            obj.matrix.decompose(obj.position, obj.quaternion, obj.scale);
+            obj.setRotationFromMatrix(this.world.reticle.matrix);
+            obj.position.setFromMatrixPosition(this.world.reticle.matrix);
             this.world.scene.add(obj);
         })
 
@@ -87,7 +88,7 @@ export class ArUser extends Connection {
 
         createApp(AROverlay).mount('#overlay');
         const xr_session = await navigator.xr!.requestSession('immersive-ar', {
-            requiredFeatures: ['hit-test', 'dom-overlay', 'camera-access', 'depth-sensing'],
+            requiredFeatures: ['hit-test', 'dom-overlay', 'camera-access', 'depth-sensing', 'light-estimation'],
             domOverlay: { root: overlay },
             // @ts-ignore
             depthSensing: {
@@ -112,9 +113,12 @@ export class ArUser extends Connection {
             alpha: true,
             preserveDrawingBuffer: true,
             canvas: canvas,
-            context: xr_context
+            context: xr_context,
+            powerPreference: "high-performance",
         });
         renderer.autoClear = false;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = PCFSoftShadowMap;
 
         const screenshare_canvas = document.createElement('canvas');
 
@@ -126,13 +130,46 @@ export class ArUser extends Connection {
 
         const reticle = new Mesh( new RingGeometry( 0.1, 0.2, 32 ).rotateX( - Math.PI / 2 ), new MeshBasicMaterial( {
             color: 0xffffff,
-            opacity: 1.0,
+            opacity: 0.25,
             transparent: true
         } ) );
         reticle.matrixAutoUpdate = false;
+        reticle.matrixWorldAutoUpdate = false;
+        reticle.castShadow = false;
+        reticle.receiveShadow = false;
+
+        // @ts-ignore
+        const xr_light_probe = await xr_session.requestLightProbe();
+
+        const directional_light = new DirectionalLight();
+        directional_light.matrixAutoUpdate = false;
+        directional_light.matrixWorldAutoUpdate = false;
+        directional_light.castShadow = true; //TODO: make it work
+        /*directional_light.shadow.mapSize.set(1024, 1024);
+		directional_light.shadow.camera.far = 100;
+		directional_light.shadow.camera.near = 0.1;
+		directional_light.shadow.camera.left = -20;
+		directional_light.shadow.camera.right = 20;
+		directional_light.shadow.camera.bottom = -20;
+		directional_light.shadow.camera.top = 20;*/
+
+        const light_probe = new AmbientLightProbe();
+        light_probe.matrixAutoUpdate = false;
+        light_probe.matrixWorldAutoUpdate = false;
+
+        const shadow_plane = new Mesh(new PlaneGeometry(100, 100, 1, 1), new ShadowMaterial({ opacity: 0.5 }));
+        shadow_plane.receiveShadow = true;
+        shadow_plane.matrixAutoUpdate = false;
+        shadow_plane.matrixWorldAutoUpdate = false;
+        shadow_plane.castShadow = false;
+        shadow_plane.rotation.set(-Math.PI / 2, 0, 0);
 
         const scene = new Scene();
+
+        scene.add(directional_light);
+        scene.add(light_probe);
         scene.add(reticle);
+        scene.add(shadow_plane);
 
         const world: ARWorld = {
             xr_session: xr_session,
@@ -144,6 +181,7 @@ export class ArUser extends Connection {
             xr_hit_test_source: hitTestSource,
             xr_transient_input_hit_test_source: transientInputHitTestSource,
             xr_views: [],
+            xr_light_probe: xr_light_probe,
             camera: camera,
             renderer: renderer,
             scene: scene,
@@ -154,6 +192,9 @@ export class ArUser extends Connection {
             screenshare_context: screenshare_context,
             remote_input: { x: 0, y: 0, is_down: false },
             reticle: reticle,
+            directional_light: directional_light,
+            light_probe: light_probe,
+            shadow_plane: shadow_plane,
         };
 
         const stream = screenshare_canvas.captureStream(20);
@@ -195,8 +236,11 @@ export class ArUser extends Connection {
                 this.send_message_to_server("sdp", msg)
             });
         });
-
-        this.add_object("chair/scene.gltf", "chair");
+        this.GLTFLoader.load("chair/scene.gltf", (gltf) => {
+            const chair = new Mesh().add(gltf.scene);
+            chair.scale.set(0.001, 0.001, 0.001);
+            this.add_object(chair, "chair");
+        });
 
         this.world.xr_session.requestAnimationFrame(this.on_frame);
     }
